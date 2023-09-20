@@ -1,6 +1,8 @@
+use core::panic;
 use std::error::Error;
 use std::fs;
-use chrono::{prelude::*,FixedOffset};
+use chrono::{prelude::*,FixedOffset,DateTime,Utc};
+use regex::Regex;
 // creating struct for storing two arguments
 pub struct  Config{
     pub time_hr:i64,
@@ -41,19 +43,25 @@ pub fn extract<'a>(time_hr:i64,contents:&'a str) -> Vec<(DateTime<FixedOffset>,S
     //initial vector for storing 4 different lines from a single read and store those as a tuple 
     let mut store_all:Vec<(DateTime<FixedOffset>,String,String,String,String)>=Vec::new();
     //making a temp vector for storing all 4 lines in each iterator as an tuple element
-    let mut current_tuple:(DateTime<FixedOffset>,String,String,String,String)=
-    (Default::default(),Default::default(), Default::default(), Default::default(), Default::default());
+    let mut current_tuple:(Option<regex::Captures>,String,String,String,String)=
+    (None,String::new(),String::new(),String::new(),String::new());
     //This empty vector will store after applying time_hr argument
     let mut final_vec:Vec<(DateTime<FixedOffset>,String, String, String, String)>=Vec::new();
     //reading file for different lines using differnt condition
     for line in contents.lines(){
         if line.starts_with("@") {
-            let start_index = line.to_string().find("2023").unwrap_or(0);
-            let end_index = line.to_string().find(" flow_cell_id").unwrap_or(line.to_string().len());
-            let result = &line.to_string()[start_index..end_index];
-            let date_time = DateTime::parse_from_rfc3339(result).unwrap();
+            // let start_index = line.to_string().find("2023").unwrap_or(0);
+            // let end_index = line.to_string().find(" flow_cell_id").unwrap_or(line.to_string().len());
+            // let result = &line.to_string()[start_index..end_index];
+            let date_time_re:Regex=Regex::new(r"start_time=(?P<time>\S+)\s*").unwrap(); 
+            //let date_time = DateTime::parse_from_rfc3339(result).unwrap();
             // reads.push(date_time);
-            current_tuple.0=date_time;
+            if let Some(date_time)=date_time_re.captures(&line){
+                current_tuple.0=Some(date_time);
+            } else{
+                panic!("No match found for start time");
+            }
+            
             current_tuple.1 = line.to_string();
         } else if line.starts_with("A") || line.starts_with("T") || line.starts_with("G") || line.starts_with("C") {
             current_tuple.2 = line.to_string();
@@ -61,18 +69,37 @@ pub fn extract<'a>(time_hr:i64,contents:&'a str) -> Vec<(DateTime<FixedOffset>,S
             current_tuple.3 = line.to_string();
         } else {
             current_tuple.4 = line.to_string();
-            store_all.push(current_tuple);
-            current_tuple = (Default::default(),Default::default(), Default::default(), Default::default(), Default::default());
+            if let Some(captures)=current_tuple.0.take(){
+                let time=captures["time"].to_string();
+                let date_time=DateTime::parse_from_str(&time, "%Y-%m-%dT%H:%M:%S.%f%z").expect("Failed to parse date time");
+                store_all.push((date_time, current_tuple.1.clone(), current_tuple.2.clone(), current_tuple.3.clone(), current_tuple.4.clone()));
+            }
+            //store_all.push(current_tuple);
+            current_tuple = (None, String::new(), String::new(), String::new(), String::new());
         }
     }
     //sorting using timestamp for getting start time in first place
     store_all.sort_by(|a,b|a.0.cmp(&b.0));
     //taking first timestamp as reference 
-    let base_timestamp = DateTime::parse_from_rfc3339("2023-06-01T12:47:06.339862+05:30")// Please change this it is for just an example
-        .unwrap()
-        .with_timezone(&Utc);
+    // let base_timestamp = DateTime::parse_from_rfc3339("2023-06-01T12:47:06.339862+05:30")// Please change this, use this for test module
+    //     .unwrap()
+    //     .with_timezone(&Utc);
+    let mut date_time1=chrono::Utc::now();
+    //let mut datetime1 = FixedOffset::east(5 * 3600 + 30 * 60); // +5 hours and 30 minutes
+    if let Some((first_datetime1, _, _, _, _)) = store_all.first() {
+        // 'datetime' now contains the first element of the first tuple
+        let p = *first_datetime1;
+        date_time1=p.into();
+        // date_time1=p_con;
+
+
+    } else {
+        // Handle the case where the vector is empty
+        panic!("Vector is empty");
+    }
     // extending time interval from start time 
-    let one_hour_later=base_timestamp+chrono::Duration::hours(time_hr);
+    let date_time1_change:DateTime<FixedOffset>=date_time1.into();
+    let one_hour_later=date_time1_change+chrono::Duration::hours(time_hr);
     for (timestamp,element2,element3,element4,element5) in store_all.iter()
     {
         if timestamp <= &one_hour_later{
