@@ -13,7 +13,9 @@ Reading file without any external crates
 - [x] Extracting reads within that time interval
 - [x] Sorting reads based on timestamp
 - [x] Using Regular expression for substring match
-- [ ] Adding test module (Making more affective way of representation as a test driven developement
+- [ ] Using buffer reads for better management 
+- [ ] Using bio or fastq module 
+- [ ] Adding test module (Making more affective way of representation as a test driven developement)
 - [ ] Optimizing with different types of error handling
 - [ ] Adding more closure for making smooth code snippet
 
